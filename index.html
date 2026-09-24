@@ -123,7 +123,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   box-shadow:0 6px 18px rgba(10,20,50,.28)}
 .toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 76px);transform:translateX(-50%) translateY(8px);
   opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;
-  display:flex;gap:14px;align-items:center;z-index:20;white-space:nowrap;transition:opacity .2s,transform .2s}
+  display:flex;gap:14px;align-items:center;z-index:20;max-width:calc(100% - 32px);text-align:center;transition:opacity .2s,transform .2s}
 .toast.show{opacity:1;pointer-events:auto;transform:translateX(-50%)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -195,6 +195,28 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .tcol .dn{font-size:11.5px;color:var(--muted)}
 .tcol.now .dn{color:var(--ink);font-weight:600}
 
+
+/* accounts */
+.accs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.acc{padding:10px 6px;border-radius:12px;background:var(--chip);text-align:center;border:2px solid transparent;min-width:0}
+.acc .an{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc .ab{display:block;font-weight:600;font-size:14.5px;white-space:nowrap}
+.acc .ab.neg{color:var(--exp)}
+.acc[aria-pressed="true"]{border-color:var(--ink);background:var(--surface)}
+.after{font-size:13.5px;color:var(--muted);margin-top:10px;min-height:1.5em}
+.after b{color:var(--ink);font-weight:600}
+.after b.neg{color:var(--exp)}
+.accrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px;border-top:1px solid var(--line)}
+.accrow:first-child{border-top:0}
+.accrow .an{font-weight:600}
+.accrow .ad{font-size:12px;color:var(--muted)}
+.accrow .bal{font-size:19px;font-weight:700;white-space:nowrap}
+.accrow .bal small{font-size:12px;font-weight:400;color:var(--muted)}
+.accrow .bal.neg{color:var(--exp)}
+.panel+.tot{margin-top:14px}
+.acc-edit{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:8px}
+.acc-edit input{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 12px;font:inherit}
+
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -239,7 +261,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
     <span id="curLbl"></span>
   </div>
   <div class="err" id="err" role="alert"></div>
-  <div class="chips" id="chips" role="group" aria-label="التصنيف"></div>
+  <span class="lbl" id="accLbl">ادفع من أي حساب؟</span>
+  <div class="accs" id="accs" role="group" aria-label="الحساب"></div>
+  <div class="after" id="after" aria-live="polite"></div>
+  <span class="lbl" style="margin-top:14px">التصنيف</span>
+  <div class="chips" id="chips" role="group" aria-label="التصنيف" style="margin-top:0"></div>
   <label class="field"><span>ملاحظة (اختياري)</span><input id="note" type="text" maxlength="80" autocomplete="off"></label>
   <label class="field"><span>التاريخ</span><input id="dt" type="date"></label>
   <button class="primary" data-a="save">حفظ</button>
@@ -250,6 +276,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   <div class="sh"><h3>الإعدادات</h3><button data-a="close" aria-label="إغلاق">×</button></div>
   <label class="field"><span>العملة</span><input id="cur" type="text" maxlength="8" autocomplete="off"></label>
   <label class="field"><span>الحد اليومي للمصروف (سيبه فاضي لو مش عايز حد)</span><input id="lim" type="text" inputmode="decimal" autocomplete="off"></label>
+  <span class="lbl" style="margin-top:16px">الحسابات: اسم كل حساب والرصيد اللي فيه دلوقتي</span>
+  <div id="accEdit"></div>
+  <p class="note">الرصيد الحالي للحساب = الرصيد اللي تكتبه هنا + إيراداته − مصروفاته. اكتب الرصيد قبل ما تبدأ تسجّل حركات جديدة. وتقدر تكتب رقم بالسالب لو الحساب عليه مديونية.</p>
   <button class="primary" data-a="saveSettings">حفظ الإعدادات</button>
 
   <div class="hr"></div>
@@ -290,17 +319,32 @@ const catInfo=(type,id)=>(CATS[type]||[]).find(c=>c[0]===id)||['other','أخرى
 
 /* ---------- state + storage ---------- */
 const KEY='masrofy-v1';
-let state={txs:[],settings:{currency:'ج.م',limit:0}};
+const DEFAULT_ACCS=[{id:'a1',name:'كاش',opening:0},{id:'a2',name:'بطاقة 1',opening:0},{id:'a3',name:'بطاقة 2',opening:0}];
+let state={txs:[],accounts:DEFAULT_ACCS.map(a=>Object.assign({},a)),settings:{currency:'ج.م',limit:0,lastAcc:'a1'}};
 let view='today';
 let vm=ymOf(new Date());
-let sheetType='exp',sheetCat='food';
+let sheetType='exp',sheetCat='food',sheetAcc='a1';
 let lastDel=null,toastTimer=null,storageWarned=false,wipeArmed=false;
 
 function validTx(t){
   return t&&(t.type==='exp'||t.type==='inc')&&isFinite(Number(t.amount))&&Number(t.amount)>0&&/^\d{4}-\d{2}-\d{2}$/.test(String(t.date));
 }
+function normAccs(arr){
+  return DEFAULT_ACCS.map(function(d,i){
+    const s=Array.isArray(arr)?arr[i]:null;
+    return {id:d.id,name:String((s&&s.name)||d.name).slice(0,20),opening:s?(Number(s.opening)||0):0};
+  });
+}
+const accById=id=>state.accounts.find(a=>a.id===id)||state.accounts[0];
+function accBalance(id){
+  let b=Number(accById(id).opening)||0;
+  state.txs.forEach(function(t){if(t.acc===id)b+=(t.type==='inc'?t.amount:-t.amount);});
+  return b;
+}
+const totalBalance=()=>state.accounts.reduce((s,a)=>s+accBalance(a.id),0);
 function normTx(t){
   return {id:String(t.id||uid()),type:t.type,amount:Number(t.amount),cat:String(t.cat||'other'),
+          acc:state.accounts.some(a=>a.id===t.acc)?t.acc:state.accounts[0].id,
           note:String(t.note||'').slice(0,80),date:String(t.date),ts:Number(t.ts)||Date.now()};
 }
 function load(){
@@ -309,10 +353,12 @@ function load(){
     if(!raw)return;
     const p=JSON.parse(raw);
     if(p&&Array.isArray(p.txs)){
+      state.accounts=normAccs(p.accounts);
       state.txs=p.txs.filter(validTx).map(normTx);
       if(p.settings){
         state.settings.currency=String(p.settings.currency||'ج.م');
         state.settings.limit=Number(p.settings.limit)||0;
+        state.settings.lastAcc=String(p.settings.lastAcc||'a1');
       }
     }
   }catch(e){}
@@ -346,6 +392,12 @@ function parseAmount(s){
   const v=parseFloat(s);
   return isFinite(v)?v:0;
 }
+function parseSigned(s){
+  const neg=/^\s*[-\u2212\u2013]/.test(String(s||''));
+  const v=parseAmount(s);
+  return neg?-v:v;
+}
+const num=v=>(Math.round(v*100)/100).toLocaleString('en-US',{maximumFractionDigits:2});
 function dayLabel(ds){
   const d=parseYmd(ds),t=new Date();t.setHours(0,0,0,0);
   const diff=Math.round((t-d)/86400000);
@@ -360,7 +412,7 @@ function shiftMonth(ym,delta){const p=ym.split('-').map(Number);return ymOf(new 
 function rowHtml(t){
   const c=catInfo(t.type,t.cat);
   return '<li class="row"><span class="ic" aria-hidden="true">'+c[2]+'</span>'+
-    '<div class="mid"><div class="t">'+c[1]+'</div>'+(t.note?'<div class="s">'+esc(t.note)+'</div>':'')+'</div>'+
+    '<div class="mid"><div class="t">'+c[1]+'</div><div class="s">'+esc(accById(t.acc).name)+(t.note?' · '+esc(t.note):'')+'</div></div>'+
     '<div class="amt '+t.type+'">'+n(t.amount,t.type==='exp'?'-':'+')+' <small>'+cur()+'</small></div>'+
     '<button class="x" data-a="del" data-id="'+esc(t.id)+'" aria-label="حذف">×</button></li>';
 }
@@ -371,7 +423,7 @@ function viewToday(){
   const spent=sum(list,'exp');
   const lim=Number(state.settings.limit)||0;
   const mList=state.txs.filter(x=>x.date.startsWith(ym));
-  const bal=sum(state.txs,'inc')-sum(state.txs,'exp');
+  const bal=totalBalance();
   let hero;
   if(lim>0){
     const left=lim-spent,pct=Math.min(100,Math.round(spent/lim*100));
@@ -475,11 +527,21 @@ function viewDash(){
   const inc=sum(list,'inc'),exp=sum(list,'exp'),net=inc-exp;
   const mx=Math.max(inc,exp,1);
   const wi=Math.round(inc/mx*100),we=Math.round(exp/mx*100);
-  const overall=sum(state.txs,'inc')-sum(state.txs,'exp');
+  const allInc=sum(state.txs,'inc'),allExp=sum(state.txs,'exp');
   let note;
   if(inc>0)note='صرفت '+Math.round(exp/inc*100)+'% من إيرادات الشهر';
   else if(exp>0)note='مفيش إيرادات مسجلة في الشهر ده';
   else note='لسه مفيش حركات في الشهر ده';
+
+  const accRows=state.accounts.map(function(a){
+    const b=accBalance(a.id),al=list.filter(t=>t.acc===a.id);
+    return '<div class="accrow"><div class="am"><div class="an">'+esc(a.name)+'</div>'+
+      '<div class="ad">إيراد الشهر '+n(sum(al,'inc'))+' · مصروف الشهر '+n(sum(al,'exp'))+'</div></div>'+
+      '<div class="bal'+(b<0?' neg':'')+'">'+n(b)+' <small>'+cur()+'</small></div></div>';
+  }).join('');
+  const accPanel='<div class="sec"><h2>أرصدة الحسابات</h2><span>المتبقي دلوقتي</span></div>'+
+    '<div class="panel">'+accRows+
+    '<div class="cat total"><div class="l"><b>إجمالي الأرصدة</b><b>'+n(totalBalance())+' '+cur()+'</b></div></div></div>';
 
   const totals='<div class="tot">'+
     '<div class="inc"><span class="k">الإيرادات</span><span class="big">'+n(inc)+'</span><small>'+cur()+'</small></div>'+
@@ -491,7 +553,8 @@ function viewDash(){
     '<div class="note">'+note+'</div></div>'+
     '<div class="cat"><div class="l"><span>الإيرادات</span><span>'+n(inc)+' '+cur()+'</span></div><div class="tr"><i class="inc" style="width:'+wi+'%"></i></div></div>'+
     '<div class="cat"><div class="l"><span>المصروفات</span><span>'+n(exp)+' '+cur()+'</span></div><div class="tr"><i style="width:'+we+'%"></i></div></div>'+
-    '<div class="cat total"><div class="l"><span>الرصيد الكلي (كل الفترة)</span><b>'+n(overall)+' '+cur()+'</b></div></div></div>';
+    '<div class="cat total"><div class="l"><span>إجمالي الإيرادات (كل الفترة)</span><b>'+n(allInc)+' '+cur()+'</b></div></div>'+
+    '<div class="cat total"><div class="l"><span>إجمالي المصروفات (كل الفترة)</span><b>'+n(allExp)+' '+cur()+'</b></div></div></div>';
 
   /* last 6 months, income vs expense (oldest on the right in RTL) */
   const months=[];
@@ -516,7 +579,7 @@ function viewDash(){
       '<div class="tr"><i class="inc" style="width:'+pct+'%"></i></div></div>';
   }).join('');
 
-  return monthNav()+totals+netBox+
+  return monthNav()+accPanel+totals+netBox+
     '<div class="sec"><h2>آخر 6 شهور</h2><span class="legend"><span><b style="background:var(--inc)"></b>إيرادات</span><span><b style="background:var(--exp)"></b>مصروفات</span></span></div>'+
     '<div class="trend" role="img" aria-label="مقارنة الإيرادات والمصروفات في آخر ستة شهور">'+tcols+'</div>'+
     '<div class="sec"><h2>الإيرادات حسب المصدر</h2><span>'+monthLabel(vm)+'</span></div>'+
@@ -554,12 +617,29 @@ function renderSheet(){
     b.classList.toggle('on',on);
     b.setAttribute('aria-pressed',String(on));
   });
+  $('#accLbl').textContent=sheetType==='exp'?'ادفع من أي حساب؟':'الإيراد داخل على أي حساب؟';
+  $('#accs').innerHTML=state.accounts.map(a=>{
+    const b=accBalance(a.id);
+    return '<button class="acc" data-a="acc" data-id="'+a.id+'" aria-pressed="'+(a.id===sheetAcc)+'">'+
+      '<span class="an">'+esc(a.name)+'</span><span class="ab'+(b<0?' neg':'')+'">'+n(b)+'</span></button>';
+  }).join('');
   $('#chips').innerHTML=CATS[sheetType].map(c=>
     '<button class="chip" data-a="cat" data-id="'+c[0]+'" aria-pressed="'+(c[0]===sheetCat)+'">'+c[2]+' '+c[1]+'</button>').join('');
   $('#curLbl').textContent=state.settings.currency||'';
+  updateAfter();
+}
+function updateAfter(){
+  const a=accById(sheetAcc),b=accBalance(a.id),amt=parseAmount($('#amt').value);
+  const el=$('#after');
+  if(amt>0){
+    const nb=b+(sheetType==='inc'?amt:-amt);
+    el.innerHTML='رصيد '+esc(a.name)+' بعد الحركة: <b class="'+(nb<0?'neg':'')+'">'+n(nb)+' '+cur()+'</b>';
+  }else{
+    el.innerHTML='الرصيد الحالي في '+esc(a.name)+': <b class="'+(b<0?'neg':'')+'">'+n(b)+' '+cur()+'</b>';
+  }
 }
 function openAdd(){
-  sheetType='exp';sheetCat=CATS.exp[0][0];
+  sheetType='exp';sheetCat=CATS.exp[0][0];sheetAcc=accById(state.settings.lastAcc).id;
   $('#amt').value='';$('#note').value='';$('#dt').value=today();$('#err').textContent='';
   renderSheet();openSheet('addSheet');
   setTimeout(()=>{try{$('#amt').focus();}catch(e){}},280);
@@ -572,13 +652,17 @@ function saveTx(){
   }
   let date=$('#dt').value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))date=today();
-  state.txs.push({id:uid(),type:sheetType,amount:amount,cat:sheetCat,note:$('#note').value.trim().slice(0,80),date:date,ts:Date.now()});
+  state.txs.push({id:uid(),type:sheetType,amount:amount,cat:sheetCat,acc:sheetAcc,note:$('#note').value.trim().slice(0,80),date:date,ts:Date.now()});
+  state.settings.lastAcc=sheetAcc;
   save();closeSheets();render();
-  toast(sheetType==='exp'?'اتسجّل المصروف':'اتسجّل الإيراد');
+  toast((sheetType==='exp'?'اتسجّل المصروف':'اتسجّل الإيراد')+' · رصيد '+accById(sheetAcc).name+': '+num(accBalance(sheetAcc)));
 }
 function openSettings(){
   $('#cur').value=state.settings.currency||'';
   $('#lim').value=state.settings.limit>0?String(state.settings.limit):'';
+  $('#accEdit').innerHTML=state.accounts.map((a,i)=>
+    '<div class="acc-edit"><input data-k="name" type="text" maxlength="20" autocomplete="off" value="'+esc(a.name)+'" aria-label="اسم الحساب '+(i+1)+'">'+
+    '<input data-k="opening" type="text" inputmode="decimal" autocomplete="off" placeholder="الرصيد" value="'+(a.opening?esc(String(a.opening)):'')+'" aria-label="الرصيد الافتتاحي للحساب '+(i+1)+'"></div>').join('');
   $('#bk').value='';$('#bkMsg').textContent='';
   wipeArmed=false;$('#wipeBtn').textContent='امسح كل البيانات';
   openSheet('setSheet');
@@ -586,6 +670,11 @@ function openSettings(){
 function saveSettings(){
   state.settings.currency=$('#cur').value.trim().slice(0,8)||'ج.م';
   state.settings.limit=parseAmount($('#lim').value);
+  document.querySelectorAll('#accEdit .acc-edit').forEach(function(row,i){
+    if(!state.accounts[i])return;
+    state.accounts[i].name=row.querySelector('[data-k="name"]').value.trim().slice(0,20)||DEFAULT_ACCS[i].name;
+    state.accounts[i].opening=parseSigned(row.querySelector('[data-k="opening"]').value);
+  });
   save();closeSheets();render();toast('اتحفظت الإعدادات');
 }
 function bkMsg(text,bad){
@@ -593,32 +682,36 @@ function bkMsg(text,bad){
 }
 function exportData(){
   const ta=$('#bk');
-  ta.value=JSON.stringify({v:1,txs:state.txs,settings:state.settings});
+  ta.value=JSON.stringify({v:2,txs:state.txs,accounts:state.accounts,settings:state.settings});
   ta.focus();ta.select();
   try{if(navigator.clipboard)navigator.clipboard.writeText(ta.value).catch(function(){});}catch(e){}
   bkMsg('النص جاهز. انسخه واحفظه في مكان أمان.');
 }
 function importData(){
+  const prevAccs=state.accounts;
   try{
     const p=JSON.parse($('#bk').value);
     if(!p||!Array.isArray(p.txs))throw new Error('bad');
+    if(Array.isArray(p.accounts))state.accounts=normAccs(p.accounts);
     const ok=p.txs.filter(validTx).map(normTx);
     if(!ok.length&&p.txs.length)throw new Error('bad');
     state.txs=ok;
     if(p.settings){
       state.settings.currency=String(p.settings.currency||state.settings.currency);
       state.settings.limit=Number(p.settings.limit)||0;
+      state.settings.lastAcc=String(p.settings.lastAcc||state.settings.lastAcc||'a1');
     }
     save();render();
     bkMsg('اتسترجع '+ok.length+' حركة.');
   }catch(e){
+    state.accounts=prevAccs;
     bkMsg('النص ده مش نسخة احتياطية صالحة. الصق النص كامل.',true);
   }
 }
 function wipe(){
   const b=$('#wipeBtn');
   if(!wipeArmed){wipeArmed=true;b.textContent='متأكد؟ اضغط تاني للمسح';return;}
-  state.txs=[];save();wipeArmed=false;closeSheets();render();toast('اتمسحت كل البيانات');
+  state.txs=[];state.accounts=normAccs(null);save();wipeArmed=false;closeSheets();render();toast('اتمسحت كل البيانات');
 }
 function delTx(id){
   const i=state.txs.findIndex(t=>t.id===id);
@@ -637,6 +730,7 @@ document.addEventListener('click',function(e){
     case 'close':closeSheets();break;
     case 'type':sheetType=el.dataset.t;sheetCat=CATS[sheetType][0][0];renderSheet();break;
     case 'cat':sheetCat=el.dataset.id;renderSheet();break;
+    case 'acc':sheetAcc=el.dataset.id;renderSheet();break;
     case 'save':saveTx();break;
     case 'settings':openSettings();break;
     case 'saveSettings':saveSettings();break;
@@ -655,6 +749,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape')closeSheets();
   if(e.key==='Enter'&&(e.target.id==='amt'||e.target.id==='note')){e.preventDefault();saveTx();}
 });
+document.addEventListener('input',function(e){if(e.target.id==='amt')updateAfter();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)render();});
 
 load();
