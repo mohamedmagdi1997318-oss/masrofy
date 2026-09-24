@@ -217,6 +217,30 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .acc-edit{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:8px}
 .acc-edit input{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:0 12px;font:inherit}
 
+
+/* lock screen */
+.hbtns{display:flex;gap:8px}
+.icon-btn[hidden]{display:none}
+.lock{position:fixed;inset:0;z-index:100;background:var(--hero);color:var(--hero-ink);display:flex;align-items:center;justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px));overflow-y:auto}
+.lock[hidden]{display:none}
+.lock-in{width:100%;max-width:320px;text-align:center;margin:auto}
+.lock-in img{width:64px;height:64px;border-radius:16px}
+.lock-in h2{margin:10px 0 4px;font-size:22px;font-weight:600}
+.lock-in p{margin:0;color:var(--hero-mute);font-size:14px;min-height:1.6em}
+.dots{display:flex;gap:14px;justify-content:center;margin:20px 0 26px;min-height:16px}
+.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--hero-mute)}
+.dots i.on{background:var(--hero-ink);border-color:var(--hero-ink)}
+.dots.bad{animation:shake .35s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px;justify-content:center;direction:ltr}
+.pad button,.pad span{width:72px;height:72px;border-radius:50%}
+.pad button{background:rgba(255,255,255,.1);color:var(--hero-ink);font-size:26px;font-weight:500}
+.pad button:active{background:rgba(255,255,255,.22)}
+.pad .del{background:none;font-size:15px;color:var(--hero-mute)}
+@media (max-height:640px){.pad{gap:10px;grid-template-columns:repeat(3,60px)}.pad button,.pad span{width:60px;height:60px;font-size:22px}}
+@media (prefers-reduced-motion: reduce){.dots.bad{animation:none}}
+.pin-in{-webkit-text-security:disc;text-security:disc;letter-spacing:4px;text-align:center}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -228,9 +252,14 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
       <h1>مصروفاتي</h1>
       <div class="date" id="dateLine"></div>
     </div>
+    <div class="hbtns">
+    <button class="icon-btn" id="lockBtn" data-a="lockNow" aria-label="قفل التطبيق الآن" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </button>
     <button class="icon-btn" data-a="settings" aria-label="الإعدادات">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
     </button>
+    </div>
   </header>
   <main id="main"></main>
 </div>
@@ -282,6 +311,20 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   <button class="primary" data-a="saveSettings">حفظ الإعدادات</button>
 
   <div class="hr"></div>
+  <span class="lbl">قفل التطبيق بالرقم السري</span>
+  <p class="note" id="pinState"></p>
+  <div class="acc-edit" id="pinBox">
+    <input class="pin-in" id="pinOld" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="الرقم الحالي" aria-label="الرقم السري الحالي">
+    <input class="pin-in" id="pinNew" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="رقم جديد (4-6)" aria-label="الرقم السري الجديد">
+  </div>
+  <div class="row2">
+    <button class="ghost" data-a="setPin">حفظ الرقم</button>
+    <button class="ghost danger" id="offPinBtn" data-a="offPin">إيقاف القفل</button>
+  </div>
+  <div class="msg" id="pinMsg" role="status"></div>
+  <p class="note">لو نسيت الرقم مفيش طريقة استرجاع، والحل الوحيد مسح بيانات التطبيق من إعدادات الجوال وبتضيع الحركات. فاعمل نسخة احتياطية قبل ما تفعّل القفل.</p>
+
+  <div class="hr"></div>
   <span class="lbl">نسخة احتياطية</span>
   <p class="note">بياناتك محفوظة على الموبايل ده بس. اطلع نسخة واحفظها في ملاحظات أو ابعتها لنفسك.</p>
   <label class="field"><span class="lbl" style="margin-top:8px">نص النسخة</span><textarea id="bk" spellcheck="false" aria-label="نص النسخة الاحتياطية"></textarea></label>
@@ -292,6 +335,21 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   </div>
   <div class="msg" id="bkMsg" role="status"></div>
 </section>
+
+<div class="lock" id="lock" role="dialog" aria-modal="true" aria-label="قفل التطبيق" hidden>
+  <div class="lock-in">
+    <img src="icons/icon-192.png" alt="">
+    <h2>مصروفاتي</h2>
+    <p id="lockMsg">اكتب الرقم السري</p>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+    <div class="pad" id="pad">
+      <button data-a="pin" data-d="1">1</button><button data-a="pin" data-d="2">2</button><button data-a="pin" data-d="3">3</button>
+      <button data-a="pin" data-d="4">4</button><button data-a="pin" data-d="5">5</button><button data-a="pin" data-d="6">6</button>
+      <button data-a="pin" data-d="7">7</button><button data-a="pin" data-d="8">8</button><button data-a="pin" data-d="9">9</button>
+      <span></span><button data-a="pin" data-d="0">0</button><button class="del" data-a="pinDel" aria-label="مسح رقم">مسح</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -325,6 +383,8 @@ let view='today';
 let vm=ymOf(new Date());
 let sheetType='exp',sheetCat='food',sheetAcc='a1';
 let lastDel=null,toastTimer=null,storageWarned=false,wipeArmed=false;
+let locked=false,pinCfg=null,lockSt={fails:0,until:0},pinBuf='',lockBusy=false,hiddenAt=0;
+const LKEY='masrofy-lock-v1',LSKEY='masrofy-lockstate-v1',GRACE=30000;
 
 function validTx(t){
   return t&&(t.type==='exp'||t.type==='inc')&&isFinite(Number(t.amount))&&Number(t.amount)>0&&/^\d{4}-\d{2}-\d{2}$/.test(String(t.date));
@@ -587,6 +647,8 @@ function viewDash(){
 }
 
 function render(){
+  if(locked){$('#main').innerHTML='';$('#dateLine').textContent='';return;}
+  $('#lockBtn').hidden=!pinCfg;
   const d=new Date();
   $('#dateLine').textContent=DAYS[d.getDay()]+' '+d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.v===view)));
@@ -665,6 +727,7 @@ function openSettings(){
     '<input data-k="opening" type="text" inputmode="decimal" autocomplete="off" placeholder="الرصيد" value="'+(a.opening?esc(String(a.opening)):'')+'" aria-label="الرصيد الافتتاحي للحساب '+(i+1)+'"></div>').join('');
   $('#bk').value='';$('#bkMsg').textContent='';
   wipeArmed=false;$('#wipeBtn').textContent='امسح كل البيانات';
+  refreshPinUI();
   openSheet('setSheet');
 }
 function saveSettings(){
@@ -720,6 +783,126 @@ function delTx(id){
   save();render();toast('اتمسحت الحركة',true);
 }
 
+/* ---------- app lock ---------- */
+const enc=new TextEncoder();
+const b64=buf=>btoa(String.fromCharCode.apply(null,new Uint8Array(buf)));
+const unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+const toEn=t=>String(t||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const cryptoOK=()=>!!(window.crypto&&window.crypto.subtle&&window.crypto.getRandomValues);
+async function derive(pin,salt,iter){
+  const key=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveBits']);
+  return crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:iter},key,256);
+}
+async function makePin(pin){
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iter=150000;
+  const bits=await derive(pin,salt,iter);
+  return {salt:b64(salt),hash:b64(bits),iter:iter,len:pin.length};
+}
+async function verifyPin(pin,cfg){
+  try{return b64(await derive(pin,unb64(cfg.salt),cfg.iter))===cfg.hash;}catch(e){return false;}
+}
+function loadLock(){
+  try{
+    const c=JSON.parse(localStorage.getItem(LKEY)||'null');
+    if(c&&c.salt&&c.hash&&c.iter&&c.len>=4&&c.len<=6)pinCfg=c;
+  }catch(e){}
+  try{
+    const l=JSON.parse(localStorage.getItem(LSKEY)||'null');
+    if(l)lockSt={fails:Number(l.fails)||0,until:Number(l.until)||0};
+  }catch(e){}
+}
+function saveLockSt(){try{localStorage.setItem(LSKEY,JSON.stringify(lockSt));}catch(e){}}
+function drawDots(){
+  const len=pinCfg?pinCfg.len:4;
+  let h='';for(let i=0;i<len;i++)h+='<i class="'+(i<pinBuf.length?'on':'')+'"></i>';
+  $('#dots').innerHTML=h;
+}
+function showOverlay(){
+  $('#lock').hidden=false;
+  document.documentElement.style.overflow='hidden';
+  drawDots();
+  if(lockLeft()>0)tickLock();else $('#lockMsg').textContent='اكتب الرقم السري';
+}
+function hideOverlay(){
+  $('#lock').hidden=true;
+  document.documentElement.style.overflow='';
+}
+function lockLeft(){return Math.max(0,Math.ceil((lockSt.until-Date.now())/1000));}
+function tickLock(){
+  const left=lockLeft();
+  if(left>0){
+    $('#lockMsg').textContent='محاولات غلط كتير. جرّب بعد '+left+' ثانية';
+    setTimeout(tickLock,1000);
+  }else if(locked){$('#lockMsg').textContent='اكتب الرقم السري';}
+}
+function lockNow(){
+  if(!pinCfg)return;
+  locked=true;pinBuf='';
+  closeSheets();
+  $('#toast').classList.remove('show');
+  ['#bk','#amt','#note'].forEach(function(q){$(q).value='';});
+  ['#accs','#after','#accEdit'].forEach(function(q){$(q).innerHTML='';});
+  showOverlay();render();
+}
+function unlock(){
+  locked=false;pinBuf='';
+  hideOverlay();render();
+}
+function pinPress(d){
+  if(!locked||lockBusy||lockLeft()>0||!pinCfg)return;
+  if(pinBuf.length>=pinCfg.len)return;
+  pinBuf+=d;drawDots();
+  if(pinBuf.length===pinCfg.len)checkPin();
+}
+function pinBack(){
+  if(!locked||lockBusy)return;
+  pinBuf=pinBuf.slice(0,-1);drawDots();
+}
+async function checkPin(){
+  lockBusy=true;
+  const ok=await verifyPin(pinBuf,pinCfg);
+  pinBuf='';lockBusy=false;
+  if(ok){lockSt={fails:0,until:0};saveLockSt();unlock();return;}
+  lockSt.fails++;
+  if(lockSt.fails%5===0){
+    const wait=Math.min(600,30*Math.pow(2,lockSt.fails/5-1));
+    lockSt.until=Date.now()+wait*1000;
+  }
+  saveLockSt();drawDots();
+  const dots=$('#dots');dots.classList.remove('bad');void dots.offsetWidth;dots.classList.add('bad');
+  if(lockLeft()>0)tickLock();else $('#lockMsg').textContent='الرقم غلط، جرّب تاني';
+}
+function pinMsg(text,bad){const m=$('#pinMsg');m.textContent=text;m.style.color=bad?'var(--exp)':'var(--inc)';}
+function refreshPinUI(){
+  $('#pinState').textContent=pinCfg?'القفل شغّال. التطبيق بيتقفل لوحده لما تسيبه نص دقيقة.':'القفل مش شغّال. أي حد ماسك الجوال وفاتح التطبيق يقدر يشوف بياناتك.';
+  $('#pinOld').style.display=pinCfg?'':'none';
+  $('#offPinBtn').style.display=pinCfg?'':'none';
+  $('#pinBox').style.gridTemplateColumns=pinCfg?'1fr 1fr':'1fr';
+  $('#pinOld').value='';$('#pinNew').value='';$('#pinMsg').textContent='';
+}
+async function setPin(){
+  if(!cryptoOK()){pinMsg('المتصفح ده مش بيدعم القفل. افتح التطبيق من رابط https في كروم.',true);return;}
+  const nw=toEn($('#pinNew').value).trim();
+  if(!/^\d{4,6}$/.test(nw)){pinMsg('الرقم السري لازم يكون من 4 إلى 6 أرقام.',true);return;}
+  if(pinCfg&&!(await verifyPin(toEn($('#pinOld').value).trim(),pinCfg))){pinMsg('الرقم الحالي غلط.',true);return;}
+  try{
+    pinCfg=await makePin(nw);
+    localStorage.setItem(LKEY,JSON.stringify(pinCfg));
+    lockSt={fails:0,until:0};saveLockSt();
+    refreshPinUI();render();
+    pinMsg('اتفعّل القفل. افتكر الرقم كويس.');
+  }catch(e){pinMsg('حصلت مشكلة وماتحفظش الرقم. جرّب تاني.',true);}
+}
+async function offPin(){
+  if(!pinCfg)return;
+  if(!(await verifyPin(toEn($('#pinOld').value).trim(),pinCfg))){pinMsg('الرقم الحالي غلط.',true);return;}
+  pinCfg=null;
+  try{localStorage.removeItem(LKEY);}catch(e){}
+  lockSt={fails:0,until:0};saveLockSt();
+  refreshPinUI();render();
+  pinMsg('اتوقف القفل.');
+}
+
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
   const el=e.target.closest('[data-a]');
@@ -731,6 +914,11 @@ document.addEventListener('click',function(e){
     case 'type':sheetType=el.dataset.t;sheetCat=CATS[sheetType][0][0];renderSheet();break;
     case 'cat':sheetCat=el.dataset.id;renderSheet();break;
     case 'acc':sheetAcc=el.dataset.id;renderSheet();break;
+    case 'pin':pinPress(el.dataset.d);break;
+    case 'pinDel':pinBack();break;
+    case 'lockNow':lockNow();break;
+    case 'setPin':setPin();break;
+    case 'offPin':offPin();break;
     case 'save':saveTx();break;
     case 'settings':openSettings();break;
     case 'saveSettings':saveSettings();break;
@@ -746,13 +934,26 @@ document.addEventListener('click',function(e){
   }
 });
 document.addEventListener('keydown',function(e){
+  if(locked){
+    if(/^[0-9]$/.test(e.key))pinPress(e.key);
+    else if(e.key==='Backspace')pinBack();
+    return;
+  }
   if(e.key==='Escape')closeSheets();
   if(e.key==='Enter'&&(e.target.id==='amt'||e.target.id==='note')){e.preventDefault();saveTx();}
 });
 document.addEventListener('input',function(e){if(e.target.id==='amt')updateAfter();});
-document.addEventListener('visibilitychange',function(){if(!document.hidden)render();});
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){
+    if(pinCfg&&!locked){hiddenAt=Date.now();showOverlay();}
+  }else if(pinCfg&&!locked){
+    if(Date.now()-hiddenAt>=GRACE)lockNow();else hideOverlay();
+  }else if(!locked){render();}
+});
 
 load();
+loadLock();
+if(pinCfg){locked=true;showOverlay();}
 render();
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
